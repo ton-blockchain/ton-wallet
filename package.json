@@ -14,6 +14,7 @@
     "core:build:dev": "cross-env IS_CORE_WALLET=1 npm run build:dev",
     "core:build:staging": "cross-env IS_CORE_WALLET=1 npm run build:staging",
     "core:build:production": "cross-env IS_CORE_WALLET=1 npm run build:production",
+    "core:web:deploy": "./deploy/deploy_core_wallet_web.sh",
     "core:extension:dev": "cross-env IS_CORE_WALLET=1 npm run extension:dev",
     "core:extension-chrome:package": "cross-env IS_CORE_WALLET=1 npm run extension-chrome:package",
     "core:extension-chrome:package:staging": "cross-env IS_CORE_WALLET=1 npm run extension-chrome:package:staging",

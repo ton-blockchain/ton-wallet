@@ -5,6 +5,7 @@
   ],
   "ignoreFiles": [
     "dist/*.css",
+    "docs/*.css",
     "src/styles/brilliant-icons.css",
     "coverage/**",
     "dist-electron/*.css",

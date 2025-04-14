@@ -1,3 +1,7 @@
+**TON Wallet** is a fork of **MyTonWallet**.
+
+---
+
 # MyTonWallet · [mytonwallet.io](https://mytonwallet.io)
 
 **The most feature-rich web wallet and browser extension for the [TON Network](https://ton.org)** – with support of jettons, NFT, TON DNS, TON Sites, TON Proxy, and TON Magic.
@@ -64,7 +68,3 @@ git clone https://github.com/LedgerHQ/udev-rules
 cd udev-rules
 sudo bash ./add_udev_rules.sh
 ```
-
-## Support Us
-
-If you like what we do, feel free to contribute by creating a pull request, or just support us using this TON wallet: `EQAIsixsrb93f9kDyplo_bK5OdgW5r0WCcIJZdGOUG1B282S`. We appreciate it a lot!
