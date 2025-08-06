@@ -9,12 +9,14 @@ import { selectNewestActivityTimestamps } from '../../selectors';
 
 addActionHandler('initApi', async (global, actions) => {
   logDebug('initApi action called');
+  const accountIds = global.accounts?.byId ? Object.keys(global.accounts.byId) : [];
   initApi(actions.apiUpdate, {
     isElectron: IS_ELECTRON,
     isNativeBottomSheet: IS_DELEGATED_BOTTOM_SHEET,
     isIosApp: IS_IOS_APP,
     isAndroidApp: IS_ANDROID_APP,
     referrer: new URLSearchParams(window.location.search).get('r') ?? undefined,
+    accountIds,
   });
 
   await callApi('waitDataPreload');

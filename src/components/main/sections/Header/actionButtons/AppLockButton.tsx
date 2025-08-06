@@ -1,6 +1,8 @@
 import React, { memo } from '../../../../../lib/teact/teact';
 import { getActions } from '../../../../../global';
 
+import { vibrate } from '../../../../../util/haptics';
+
 import useLang from '../../../../../hooks/useLang';
 import useLastCallback from '../../../../../hooks/useLastCallback';
 
@@ -15,6 +17,8 @@ function AppLockButton() {
 
   const handleManualLock = useLastCallback(() => {
     setIsManualLockActive({ isActive: true, shouldHideBiometrics: true });
+
+    void vibrate();
   });
 
   return (

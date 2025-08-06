@@ -206,7 +206,14 @@ function Card({
             <div className={buildClassName(styles.change, 'rounded-font')}>
               {!!changePrefix && (
                 <>
-                  <AnimatedCounter text={`${changePrefix}\u2009${Math.abs(changePercent!)}%`} />
+                  <i
+                    className={buildClassName(
+                      styles.changePrefix,
+                      changePrefix === 'up' ? 'icon-arrow-up' : 'icon-arrow-down',
+                    )}
+                    aria-hidden
+                  />
+                  <AnimatedCounter text={`${Math.abs(changePercent!)}%`} />
                   {' · '}
                 </>
               )}

@@ -123,7 +123,7 @@ Testing of the "Auto-Updates" feature can be split into severals groups of scena
 
 - version in `package.json` and in `${ENVIRONMENT_URL}/version.txt` files is the same
 - version in `package.json` and in `${ENVIRONMENT_URL}/electronVersion.txt.txt` files is the same
-- no available releases in [public repo](https://github.com/mytonwalletorg/mytonwallet/releases) with version above the one in the `package.json` file
+- no available releases in [public repo](https://github.com/mytonwallet-org/mytonwallet/releases) with version above the one in the `package.json` file
 
 **Expected behaviour:** "Update" button is not displayed
 
@@ -133,7 +133,7 @@ Testing of the "Auto-Updates" feature can be split into severals groups of scena
 
 - version in `package.json` is lower than the one in `${ENVIRONMENT_URL}/version.txt` file
 - version in `package.json` and in `${ENVIRONMENT_URL}/electronVersion.txt.txt` files is the same
-- no available releases in [public repo](https://github.com/mytonwalletorg/mytonwallet/releases) with version above the one in the `package.json` file
+- no available releases in [public repo](https://github.com/mytonwallet-org/mytonwallet/releases) with version above the one in the `package.json` file
 
 **Expected behaviour:** "Update" button is visible, on click application content reloads, "Update" button disappears
 
@@ -143,7 +143,7 @@ Testing of the "Auto-Updates" feature can be split into severals groups of scena
 
 - version in `package.json` and in `${ENVIRONMENT_URL}/version.txt` files is the same
 - version in `package.json` is lower that the one is in `${ENVIRONMENT_URL}/electronVersion.txt.txt` files
-- since version bump in `electronVersion.txt` file should be done right before release, there is a new available release in [public repo](https://github.com/mytonwalletorg/mytonwallet/releases) with version above the one in the `package.json` file
+- since version bump in `electronVersion.txt` file should be done right before release, there is a new available release in [public repo](https://github.com/mytonwallet-org/mytonwallet/releases) with version above the one in the `package.json` file
 
 **Expected behaviour:** "Update" button is visible in a few minutes after application start (update is being downloaded on the background), on click full application reload and update installation is happening
 
@@ -153,7 +153,7 @@ Testing of the "Auto-Updates" feature can be split into severals groups of scena
 
 - version in `package.json` is lower than the one in `${ENVIRONMENT_URL}/version.txt` file
 - version in `package.json` is lower that the one is in `${ENVIRONMENT_URL}/electronVersion.txt.txt` files
-- since version bump in `electronVersion.txt` file should be done right before release, there is a new available release in [public repo](https://github.com/mytonwalletorg/mytonwallet/releases) with version above the one in the `package.json` file
+- since version bump in `electronVersion.txt` file should be done right before release, there is a new available release in [public repo](https://github.com/mytonwallet-org/mytonwallet/releases) with version above the one in the `package.json` file
 
 **Expected behaviour:** "Update" button is visible, on click full application reload and update installation is happening (electron update is in higher priority over Web update)
 

@@ -1,4 +1,10 @@
-import { ACCENT_COLORS } from '../../util/accentColor/constants';
+import {
+  ACCENT_BNW_INDEX,
+  ACCENT_COLORS,
+  ACCENT_GOLD_INDEX,
+  ACCENT_RADIOACTIVE_INDEX,
+  ACCENT_SILVER_INDEX,
+} from '../../util/accentColor/constants';
 import { euclideanDistance, hex2rgb } from '../../util/colors';
 import { createPostMessageInterface } from '../../util/createPostMessageInterface';
 import { getCachedImageUrl } from '../../util/getCachedImageUrl';
@@ -41,6 +47,17 @@ function extractPaletteFromImage(img: ImageBitmap, quality: number, colorCount: 
   return cmap ? cmap.palette() as [number, number, number][] : undefined;
 }
 
+const excludedIndices = new Set([
+  ACCENT_RADIOACTIVE_INDEX,
+  ACCENT_SILVER_INDEX,
+  ACCENT_GOLD_INDEX,
+  ACCENT_BNW_INDEX,
+]);
+
+const allowedColors = ACCENT_COLORS.light
+  .map((color, index) => ({ color, index }))
+  .filter(({ index }) => !excludedIndices.has(index));
+
 async function processNftImage(url: string, quality: number, colorCount: number) {
   let bitmap: ImageBitmap | undefined;
 
@@ -56,9 +73,12 @@ async function processNftImage(url: string, quality: number, colorCount: number)
     }
 
     const dominantRgb = palette[0];
-    const distances = ACCENT_COLORS.light.map((accentColor) => euclideanDistance(dominantRgb, hex2rgb(accentColor)));
+
+    const distances = allowedColors.map(({ color }) => euclideanDistance(dominantRgb, hex2rgb(color)));
     const minDistance = Math.min(...distances);
-    return distances.indexOf(minDistance);
+    const minDistanceIndex = distances.indexOf(minDistance);
+
+    return allowedColors[minDistanceIndex].index;
   } catch (error) {
     logDebugError('[Worker] Error processing NFT image:', error);
     return undefined;

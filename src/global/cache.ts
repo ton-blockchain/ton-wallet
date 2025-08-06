@@ -7,7 +7,6 @@ import type {
   GlobalState,
   SavedAddress,
   TokenPeriod,
-  UserToken,
 } from './types';
 import {
   StakingState,
@@ -27,7 +26,7 @@ import { getActivityTokenSlugs, getIsActivityPending, getIsTxIdLocal } from '../
 import { bigintReviver } from '../util/bigint';
 import isEmptyObject from '../util/isEmptyObject';
 import {
-  cloneDeep, filterValues, mapValues, pick, pickTruthy,
+  cloneDeep, extractKey, filterValues, mapValues, pick, pickTruthy,
 } from '../util/iteratees';
 import { clearPoisoningCache, updatePoisoningCache } from '../util/poisoningHash';
 import { onBeforeUnload, throttle } from '../util/schedulers';
@@ -35,7 +34,7 @@ import { getIsActiveStakingState } from '../util/staking';
 import { IS_ELECTRON } from '../util/windowEnvironment';
 import { addActionHandler, getGlobal } from './index';
 import { INITIAL_STATE, STATE_VERSION } from './initialState';
-import { selectAccountTokens } from './selectors';
+import { selectAccountState, selectAccountTokens } from './selectors';
 
 const UPDATE_THROTTLE = IS_CAPACITOR ? 500 : 5000;
 const ACTIVITIES_LIMIT = 20;
@@ -543,6 +542,22 @@ const getUsedTokenSlugs = (reducedGlobal: GlobalState): string[] => {
   return Array.from(usedTokenSlugs);
 };
 
+function getAccountTokenSlugs(global: GlobalState, accountId: string) {
+  const { currentTokenSlug } = selectAccountState(global, accountId) ?? {};
+  const tokenSlugs = extractKey(selectAccountTokens(global, accountId) ?? [], 'slug')
+    .slice(0, ACTIVITY_TOKENS_LIMIT);
+
+  if (!tokenSlugs.includes(TONCOIN.slug)) {
+    tokenSlugs.push(TONCOIN.slug);
+  }
+
+  if (currentTokenSlug && !tokenSlugs.includes(currentTokenSlug)) {
+    tokenSlugs.push(currentTokenSlug);
+  }
+
+  return tokenSlugs;
+}
+
 function updateCache(force?: boolean) {
   if (GLOBAL_STATE_CACHE_DISABLED || !isCaching || (!force && getIsHeavyAnimating())) {
     return;
@@ -610,9 +625,9 @@ function reduceByAccountId(global: GlobalState) {
       };
     }
 
-    const accountTokens = selectAccountTokens(global, accountId);
-    acc[accountId].balances = reduceAccountBalances(state.balances, accountTokens);
-    acc[accountId].activities = reduceAccountActivities(state.activities, accountTokens);
+    const accountTokenSlugs = getAccountTokenSlugs(global, accountId);
+    acc[accountId].balances = reduceAccountBalances(state.balances, accountTokenSlugs);
+    acc[accountId].activities = reduceAccountActivities(state.activities, accountTokenSlugs);
     acc[accountId].staking = reduceAccountStaking(state.staking);
     acc[accountId].stakingHistory = state.stakingHistory?.length
       ? state.stakingHistory.slice(0, STAKING_HISTORY_LIMIT)
@@ -622,36 +637,26 @@ function reduceByAccountId(global: GlobalState) {
   }, {} as GlobalState['byAccountId']);
 }
 
-function reduceAccountBalances(balances?: AccountState['balances'], tokens?: UserToken[]) {
-  if (!balances?.bySlug || !tokens) return balances;
-
-  const reducedSlugs = tokens.slice(0, ACTIVITY_TOKENS_LIMIT).map(({ slug }) => slug);
-  if (!reducedSlugs.includes(TONCOIN.slug)) {
-    reducedSlugs.push(TONCOIN.slug);
-  }
+function reduceAccountBalances(balances?: AccountState['balances'], tokenSlugs?: string[]) {
+  if (!balances?.bySlug || !tokenSlugs) return balances;
 
   return {
     ...balances,
-    bySlug: pick(balances.bySlug, reducedSlugs),
+    bySlug: pick(balances.bySlug, tokenSlugs),
   };
 }
 
-function reduceAccountActivities(activities?: AccountState['activities'], tokens?: UserToken[]) {
+function reduceAccountActivities(activities?: AccountState['activities'], tokenSlugs?: string[]) {
   const {
     idsBySlug, newestActivitiesBySlug, byId, idsMain,
   } = activities || {};
-  if (!tokens || !idsBySlug || !byId || !idsMain) return undefined;
-
-  const reducedSlugs = tokens.slice(0, ACTIVITY_TOKENS_LIMIT).map(({ slug }) => slug);
-  if (!reducedSlugs.includes(TONCOIN.slug)) {
-    reducedSlugs.push(TONCOIN.slug);
-  }
+  if (!tokenSlugs || !idsBySlug || !byId || !idsMain) return undefined;
 
   const reducedIdsMain = pickVisibleActivities(idsMain, byId);
-  const reducedIdsBySlug = mapValues(pickTruthy(idsBySlug, reducedSlugs), (ids) => pickVisibleActivities(ids, byId));
+  const reducedIdsBySlug = mapValues(pickTruthy(idsBySlug, tokenSlugs), (ids) => pickVisibleActivities(ids, byId));
 
   const reducedNewestActivitiesBySlug = newestActivitiesBySlug
-    ? pick(newestActivitiesBySlug, reducedSlugs)
+    ? pick(newestActivitiesBySlug, tokenSlugs)
     : undefined;
 
   const reducedIds = Object.values(reducedIdsBySlug).concat(reducedIdsMain).flat();

@@ -48,7 +48,6 @@ import {
 } from '../../reducers';
 import {
   selectAccount,
-  selectAccountIdByAddress,
   selectAccounts,
   selectCurrentNetwork,
   selectIsOneAccount,
@@ -974,10 +973,8 @@ addActionHandler('importAccountByVersion', async (global, actions, { version }) 
   const wallet = (await callApi('importNewWalletVersion', accountId, version))!;
   global = getGlobal();
 
-  const existAccountId = selectAccountIdByAddress(global, 'ton', wallet.address);
-
-  if (existAccountId) {
-    actions.switchAccount({ accountId: existAccountId });
+  if (!wallet.isNew) {
+    actions.switchAccount({ accountId: wallet.accountId });
     return;
   }
 

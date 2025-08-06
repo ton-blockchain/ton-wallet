@@ -38,7 +38,7 @@ export default async function init(onUpdate: OnApiUpdate, args: ApiInitArgs) {
     tonConnectSse.initSse(onUpdate);
   }
 
-  await startStorageMigration(onUpdate, chains.ton);
+  await startStorageMigration(onUpdate, chains.ton, args.accountIds);
 
   if (environment.isSseSupported) {
     void tonConnectSse.resetupSseConnection();

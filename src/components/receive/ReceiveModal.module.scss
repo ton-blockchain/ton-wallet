@@ -92,6 +92,7 @@
 
 .tabsOverlay {
   --tab-gap-size: 2rem;
+  --red-background-start: 58%;
 
   top: 0.75rem;
 
@@ -100,12 +101,17 @@
   min-width: 100%;
   padding: 0 0.75rem;
 
+  //noinspection CssInvalidFunction
   background: linear-gradient(
       90deg,
       var(--color-activity-blue-background) 0%,
       var(--color-activity-blue-background) 42%,
-      var(--color-activity-red-background) 58%,
+      var(--color-activity-red-background) var(--red-background-start),
       var(--color-activity-red-background) 100%);
+
+  :global(html.theme-dark) & {
+    --red-background-start: 52%;
+  }
 }
 
 .tabsInModal {

@@ -1,7 +1,7 @@
 # Verifying GPG signatures of MyTonWallet using macOS or Linux command line
 This can be used to verify the authenticity of MyTonWallet binaries/sources.
 
-Download only from https://mytonwallet.app/get or https://github.com/mytonwalletorg/mytonwallet/releases and remember to check the gpg signature again every time you download a new version.
+Download only from https://mytonwallet.app/get or https://github.com/mytonwallet-org/mytonwallet/releases and remember to check the gpg signature again every time you download a new version.
 
 ## Obtain public GPG key for Mytonwallet Dev
 In a terminal enter (or copy):

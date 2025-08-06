@@ -22,6 +22,7 @@ export interface ApiInitArgs {
   isIosApp?: boolean;
   isAndroidApp?: boolean;
   referrer?: string;
+  accountIds?: string[];
 }
 
 export interface ApiToken {

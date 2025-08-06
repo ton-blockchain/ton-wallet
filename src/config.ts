@@ -45,7 +45,7 @@ export const INACTIVE_MARKER = '[Inactive]';
 export const PRODUCTION_URL = IS_CORE_WALLET ? 'https://wallet.ton.org' : 'https://mytonwallet.app';
 export const BETA_URL = IS_CORE_WALLET ? 'https://beta.wallet.ton.org' : 'https://beta.mytonwallet.app';
 export const APP_INSTALL_URL = 'https://get.mytonwallet.io/';
-export const APP_REPO_URL = 'https://github.com/mytonwalletorg/mytonwallet';
+export const APP_REPO_URL = 'https://github.com/mytonwallet-org/mytonwallet';
 export const BASE_URL = process.env.BASE_URL;
 
 export const BOT_USERNAME = process.env.BOT_USERNAME || 'MyTonWalletBot';
@@ -329,6 +329,7 @@ export const SWAP_CROSSCHAIN_SLUGS = new Set([
 ]);
 
 export const STON_PTON_ADDRESS = 'EQCM3B12QK1e4yZSf8GtBRT0aLMNyEsBc_DhVfRRtOEffLez';
+export const STON_PTON_SLUG = 'ton-eqcm3b12qk';
 
 export const DNS_IMAGE_GEN_URL = 'https://dns-image.mytonwallet.org/img?d=';
 

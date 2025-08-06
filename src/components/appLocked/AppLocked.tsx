@@ -13,6 +13,7 @@ import {
 import { getDoesUsePinPad } from '../../util/biometrics';
 import buildClassName from '../../util/buildClassName';
 import { stopEvent } from '../../util/domEvents';
+import { vibrate } from '../../util/haptics';
 import { createSignal } from '../../util/signals';
 import { IS_DELEGATED_BOTTOM_SHEET, IS_DELEGATING_BOTTOM_SHEET, IS_ELECTRON } from '../../util/windowEnvironment';
 
@@ -210,6 +211,7 @@ function AppLocked({
     if (IS_DELEGATING_BOTTOM_SHEET) void BottomSheet.show();
     unfixSlide();
     setIsAppLockActive({ isActive: false });
+    void vibrate();
   });
 
   const autolockPeriod = useMemo(

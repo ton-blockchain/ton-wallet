@@ -1,6 +1,6 @@
 import { IS_DESKTOP, IS_MOBILE, platform, onContentReady } from "/common.js";
 
-const REPO = 'mytonwalletorg/mytonwallet';
+const REPO = 'mytonwallet-org/mytonwallet';
 const LATEST_RELEASE_API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const LATEST_RELEASE_WEB_URL = `https://github.com/${REPO}/releases/latest`;
 const LATEST_RELEASE_DOWNLOAD_URL = `https://github.com/${REPO}/releases/download/v%VERSION%`;

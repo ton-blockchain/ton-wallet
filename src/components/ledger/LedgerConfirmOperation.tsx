@@ -85,6 +85,9 @@ function LedgerConfirmOperation({
       '$hardware_blind_sign_not_enabled',
       '$hardware_blind_sign_not_enabled_internal',
     ].includes(error);
+    const errorMessage = isErrorDetailed
+      ? (<span>{renderText(lang(error))}</span>)
+      : renderText(lang(error!));
 
     return (
       <>
@@ -100,7 +103,7 @@ function LedgerConfirmOperation({
             previewUrl={ANIMATED_STICKERS_PATHS.holdTonPreview}
           />
           <div className={buildClassName(styles.declinedLabel, isErrorDetailed && styles.declinedLabelDetailed)}>
-            {renderText(lang(error!))}
+            {errorMessage}
           </div>
           <div className={styles.actionBlock}>
             <Button onClick={onClose} className={styles.button}>{lang('Cancel')}</Button>

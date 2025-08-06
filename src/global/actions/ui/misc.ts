@@ -761,8 +761,6 @@ addActionHandler('setIsAppLockActive', (global, actions, { isActive }) => {
   }
 
   setGlobal({ ...global, isAppLockActive: isActive || undefined });
-
-  void vibrate();
 });
 
 addActionHandler('switchAccountAndOpenUrl', async (global, actions, payload) => {

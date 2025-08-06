@@ -6,6 +6,7 @@ import type {
   ApiAccountWithMnemonic,
   ApiActivityTimestamps,
   ApiImportAddressByChain,
+  ApiLedgerDriver,
   ApiNetwork,
   ApiTonAccount,
   ApiTonWallet,
@@ -295,13 +296,34 @@ export async function importViewAccount(network: ApiNetwork, addressByChain: Api
   }
 }
 
-export async function importNewWalletVersion(accountId: string, version: ApiTonWalletVersion) {
+export async function importNewWalletVersion(accountId: string, version: ApiTonWalletVersion): Promise<{
+  isNew: true;
+  accountId: string;
+  address: string;
+  ledger?: { index: number; driver: ApiLedgerDriver };
+} | {
+  isNew: false;
+  accountId: string;
+}> {
   const { network } = parseAccountId(accountId);
   const account = await fetchStoredTonAccount(accountId);
   const newAccount = {
     ...account,
     ton: ton.getOtherVersionWallet(network, account.ton, version),
   };
+
+  const accounts = await fetchStoredAccounts();
+  const existingAccount = Object.entries(accounts).find(([, account]) => {
+    return account.ton?.address === newAccount.ton.address && account.type === newAccount.type;
+  });
+
+  if (existingAccount) {
+    return {
+      isNew: false,
+      accountId: existingAccount[0],
+    };
+  }
+
   const ledger = account.type === 'ledger'
     ? { index: account.ton.index, driver: account.driver }
     : undefined;
@@ -309,6 +331,7 @@ export async function importNewWalletVersion(accountId: string, version: ApiTonW
   const newAccountId = await addAccount(network, newAccount);
 
   return {
+    isNew: true,
     accountId: newAccountId,
     address: newAccount.ton.address,
     ledger,

@@ -10,6 +10,8 @@ import { buildCollectionByKey } from '../../../../../util/iteratees';
 import { round } from '../../../../../util/math';
 import { getFullStakingBalance } from '../../../../../util/staking';
 
+type ChangePrefix = 'up' | 'down' | undefined;
+
 export function calculateFullBalance(tokens: UserToken[], stakingStates?: ApiStakingState[]) {
   const stakingStateBySlug = buildCollectionByKey(stakingStates ?? [], 'tokenSlug');
 
@@ -35,7 +37,7 @@ export function calculateFullBalance(tokens: UserToken[], stakingStates?: ApiSta
   }, Big(0)).round(4).toNumber();
 
   const changePercent = round(primaryValue ? (changeValue / (primaryValue.toNumber() - changeValue)) * 100 : 0, 2);
-  const changePrefix = changeValue > 0 ? '↑' : changeValue < 0 ? '↓' : undefined;
+  const changePrefix: ChangePrefix = changeValue > 0 ? 'up' : changeValue < 0 ? 'down' : undefined;
 
   return {
     primaryValue: primaryValue.toString(),

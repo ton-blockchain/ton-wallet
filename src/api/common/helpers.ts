@@ -34,7 +34,7 @@ import {
 } from './addresses';
 import { hexToBytes } from './utils';
 
-const actualStateVersion = 18;
+const actualStateVersion = 19;
 let migrationEnsurePromise: Promise<void>;
 
 export function buildLocalTransaction(
@@ -102,8 +102,8 @@ export function isUpdaterAlive(onUpdate: OnApiUpdate) {
   return currentOnUpdate === onUpdate;
 }
 
-export function startStorageMigration(onUpdate: OnApiUpdate, ton: typeof chains.ton) {
-  migrationEnsurePromise = migrateStorage(onUpdate, ton)
+export function startStorageMigration(onUpdate: OnApiUpdate, ton: typeof chains.ton, accountIds?: string[]) {
+  migrationEnsurePromise = migrateStorage(onUpdate, ton, accountIds)
     .catch((err) => {
       logDebugError('Migration error', err);
       currentOnUpdate?.({
@@ -118,7 +118,7 @@ export function waitStorageMigration() {
   return migrationEnsurePromise;
 }
 
-export async function migrateStorage(onUpdate: OnApiUpdate, ton: typeof chains.ton) {
+export async function migrateStorage(onUpdate: OnApiUpdate, ton: typeof chains.ton, accountIds?: string[]) {
   let version = Number(await storage.getItem('stateVersion', true));
 
   if (version === actualStateVersion) {
@@ -408,6 +408,13 @@ export async function migrateStorage(onUpdate: OnApiUpdate, ton: typeof chains.t
     await migrations.migration17.start();
 
     version = 18;
+    await storage.setItem('stateVersion', version);
+  }
+
+  if (version === 18) {
+    await migrations.migration18.start(accountIds);
+
+    version = 19;
     await storage.setItem('stateVersion', version);
   }
 }
