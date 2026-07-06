@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkmytonwallet=self.webpackChunkmytonwallet||[]).push([[564],{94564(e,n,a){a.d(n,{DialogWeb:()=>s});var l=a(59381);class s extends l.E_{async alert(e){window.alert(e.message)}async prompt(e){const n=window.prompt(e.message,e.inputText||"");return{value:null!==n?n:"",cancelled:null===n}}async confirm(e){return{value:window.confirm(e.message)}}}}}]);
+//# sourceMappingURL=564.724148a9c9f2a2c5701a.js.map
