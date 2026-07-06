@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkmytonwallet=self.webpackChunkmytonwallet||[]).push([[988],{91988(e,t,s){s.d(t,{NativeSettingsWeb:()=>r});var n=s(16546);class r extends n.E_{async open(){return{success:!1,error:"NativeSettings is not supported on the web platform."}}async openAndroid(){return{success:!1,error:"NativeSettings is not supported on the web platform."}}async openIOS(){return{success:!1,error:"NativeSettings is not supported on the web platform."}}}}}]);
+//# sourceMappingURL=988.7ed6ec0ff244e81313be.js.map
