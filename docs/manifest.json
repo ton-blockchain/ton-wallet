@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "My Wallet • Crypto & Web3",
   "description": "Self-custodial wallet for TON, TRON, Solana, Ethereum and more. Swap, stake, buy crypto, manage NFTs and explore dapps.",
-  "version": "26.7.6",
+  "version": "26.8.9",
   "icons": {
     "192": "gramWallet/icon-192x192.png",
     "256": "gramWallet/icon-256x256.png",
