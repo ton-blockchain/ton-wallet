@@ -1,0 +1,5 @@
+version=26.9.0
+commit=b7c75fe3b595169d400aa3d99c268bb461126ddb
+branch=master
+env=production
+built=2026-09-05T19:25:42.425Z
