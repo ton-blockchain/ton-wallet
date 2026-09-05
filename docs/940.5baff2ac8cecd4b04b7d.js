@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkmytonwallet=self.webpackChunkmytonwallet||[]).push([[940],{37914(e,l,t){t.d(l,{default:()=>a.A}),t(16780);var a=t(98333)}}]);
