@@ -1,0 +1,130 @@
+name: Activate or expand Gram Chrome rollout
+run-name: Gram Chrome ${{ inputs.operation }} from run ${{ inputs.run_id }} attempt ${{ inputs.run_attempt }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Activate a reviewed stage or increase an existing rollout
+        required: true
+        type: choice
+        options: [promote, rollout]
+      run_id:
+        description: Successful stage run for promote; successful publication run for rollout
+        required: true
+        type: string
+      run_attempt:
+        description: Exact successful attempt that produced the selected receipt
+        required: true
+        type: string
+      rollout_percentage:
+        description: New percentage for rollout only; promote retains the staged percentage
+        required: true
+        type: string
+        default: '5'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: gram-production
+  cancel-in-progress: false
+  queue: max
+
+env:
+  GRAM_RELEASE_ENABLED: ${{ vars.GRAM_RELEASE_ENABLED }}
+
+jobs:
+  publish:
+    name: Publish the original reviewed Chrome package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Select the exact successful operation artifact
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          RUN_ATTEMPT: ${{ inputs.run_attempt }}
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          case "$OPERATION" in
+            promote) KIND=stage ;;
+            rollout) KIND=operation ;;
+            *) echo 'Invalid publication operation' >&2; exit 1 ;;
+          esac
+          node scripts/receipts.mjs select "$RUN_ID" "$RUN_ATTEMPT" "$KIND" operation-selection.json
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.select.outputs.artifact_id }}
+          merge-multiple: true
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: operation
+      - name: Verify receipt and recover its original build identity
+        id: receipt
+        run: node scripts/receipts.mjs operation operation/store-receipt.json operation-selection.json
+      - name: Select the original build artifact
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ steps.receipt.outputs.build_run_id }}
+          BUILD_ATTEMPT: ${{ steps.receipt.outputs.build_run_attempt }}
+        run: node scripts/receipts.mjs select "$BUILD_RUN" "$BUILD_ATTEMPT" build build-selection.json
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.build.outputs.artifact_id }}
+          merge-multiple: true
+          run-id: ${{ steps.receipt.outputs.build_run_id }}
+          github-token: ${{ github.token }}
+          path: verified
+      - name: Verify the immutable package and receipt chain
+        env:
+          ARCHIVE: ${{ steps.receipt.outputs.archive_name }}
+          VERSION: ${{ steps.receipt.outputs.version }}
+          DIGEST: ${{ steps.receipt.outputs.archive_sha256 }}
+        run: |
+          node scripts/receipts.mjs verify-build verified/build-receipt.json verified build-selection.json
+          node scripts/receipts.mjs operation operation/store-receipt.json operation-selection.json verified/build-receipt.json
+          node scripts/validate-chrome.mjs "verified/$ARCHIVE" "$VERSION" "$DIGEST"
+      - name: Recheck current source and release authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.receipt.outputs.source_sha }}
+          VERSION: ${{ steps.receipt.outputs.version }}
+        run: node scripts/source.mjs live "$SOURCE_SHA" "$VERSION"
+      - name: Activate staged revision or increase rollout
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          PUBLISHER_ID: ${{ vars.GRAM_CHROME_PUBLISHER_ID }}
+          EXTENSION_ID: nphplpgoakhhjchkkhmiggakijnkhfnd
+          OPERATION: ${{ inputs.operation }}
+          PERCENTAGE: ${{ inputs.rollout_percentage }}
+        run: |
+          if [ "$OPERATION" = promote ]; then
+            bash scripts/publish-chrome.sh promote operation/store-receipt.json store-receipt.json
+          else
+            bash scripts/publish-chrome.sh rollout operation/store-receipt.json "$PERCENTAGE" store-receipt.json
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gram-operation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: store-receipt.json
+          if-no-files-found: ignore
+          retention-days: 90
+      - name: Record the verified Store result
+        run: |
+          node -e "const r=JSON.parse(require('fs').readFileSync('store-receipt.json')); console.log('Chrome '+r.operation+' succeeded for '+r.build.version+'. Original source: '+r.build.sourceSha)" >> "$GITHUB_STEP_SUMMARY"

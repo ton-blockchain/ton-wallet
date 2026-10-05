@@ -1,0 +1,9 @@
+# GitHub supports queue:max; actionlint needs this narrow schema exception.
+# https://github.blog/changelog/2026-05-07-github-actions-concurrency-groups-now-allow-larger-queues/
+paths:
+  .github/workflows/gram-release.yml:
+    ignore:
+      - '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$'
+  .github/workflows/gram-chrome-publish.yml:
+    ignore:
+      - '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$'
