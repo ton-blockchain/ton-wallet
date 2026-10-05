@@ -1,0 +1,5 @@
+version=26.9.9
+commit=80f30190ebb2717134acf13f1fb931e464c5c204
+branch=deploy/tonorg-26.9.9
+env=production
+built=2026-10-05T09:13:16.472Z
