@@ -1,0 +1,322 @@
+name: Build and stage Gram Wallet
+run-name: Gram ${{ inputs.version }} (${{ inputs.mode }}) from ${{ inputs.source_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full public My Wallet source commit
+        required: true
+        type: string
+      version:
+        description: Exact package and release version
+        required: true
+        type: string
+      mode:
+        description: Build, preflight the Store, or deploy web and stage Chrome
+        required: true
+        type: choice
+        default: check
+        options: [check, preflight, stage]
+      rollout_percentage:
+        description: Initial Chrome percentage retained through staged activation
+        required: true
+        type: string
+        default: '5'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ inputs.mode == 'stage' && 'gram-production' || format('gram-check-{0}', github.run_id) }}
+  cancel-in-progress: false
+  queue: max
+
+env:
+  GRAM_RELEASE_ENABLED: ${{ vars.GRAM_RELEASE_ENABLED }}
+  RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+  RELEASE_VERSION: ${{ inputs.version }}
+
+jobs:
+  source:
+    name: Validate public release source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check source, version and release mode
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          ROLLOUT: ${{ inputs.rollout_percentage }}
+        run: node scripts/source.mjs check "$RELEASE_SOURCE_SHA" "$RELEASE_VERSION" "$MODE" "$ROLLOUT"
+
+  build:
+    name: Build both Gram targets without publishing credentials
+    needs: source
+    if: inputs.mode != 'preflight'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    cache-mode: none
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: mytonwallet-org/mytonwallet
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Confirm exact source and clean build environment
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
+          test ! -s .env
+      - run: npm ci
+      - run: npm run i18n:build:default
+      - run: npm test -- --runInBand
+      - name: Build web and Chrome
+        env:
+          PROXY_HOSTS: ${{ vars.PROXY_HOSTS }}
+          WALLET_CONNECT_PROJECT_ID: ${{ vars.WALLET_CONNECT_PROJECT_ID }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/gram-raw/web"
+          npm run gram:build:production
+          cp -R dist/. "$RUNNER_TEMP/gram-raw/web/"
+          npm run gram:extension-chrome:package:production
+          cp MyWallet-chrome.zip "$RUNNER_TEMP/gram-raw/GramWallet-chrome-$RELEASE_VERSION.zip"
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: gram-raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gram-raw
+          if-no-files-found: error
+          retention-days: 7
+          include-hidden-files: true
+
+  validate:
+    name: Validate artifacts in a clean runner
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      pages_id: ${{ steps.pages.outputs.artifact_id }}
+      pages_name: ${{ steps.names.outputs.pages_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test tests/*.test.mjs
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          merge-multiple: true
+          path: raw
+      - name: Apply receiver policy
+        run: |
+          node scripts/validate-web.mjs raw/web "$RELEASE_VERSION"
+          node scripts/validate-chrome.mjs "raw/GramWallet-chrome-$RELEASE_VERSION.zip" "$RELEASE_VERSION"
+          printf 'wallet.ton.org' > raw/web/CNAME
+          node scripts/receipts.mjs marker raw/web/gram-release.json
+      - name: Name the Pages artifact
+        id: names
+        run: echo "pages_name=github-pages-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-pages-artifact@v3
+        id: pages
+        with:
+          name: ${{ steps.names.outputs.pages_name }}
+          path: raw/web
+          retention-days: 90
+      - name: Preserve the exact Pages archive and Chrome ZIP
+        run: |
+          mkdir verified
+          cp "raw/GramWallet-chrome-$RELEASE_VERSION.zip" verified/
+          cp "$RUNNER_TEMP/artifact.tar" "verified/GramWallet-web-$RELEASE_VERSION.tar"
+          node scripts/receipts.mjs create "verified/GramWallet-chrome-$RELEASE_VERSION.zip" \
+            "verified/GramWallet-web-$RELEASE_VERSION.tar" "$RELEASE_SOURCE_SHA" "$RELEASE_VERSION" verified/build-receipt.json
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: gram-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verified
+          if-no-files-found: error
+          retention-days: 90
+      - name: Record build identity
+        run: |
+          {
+            echo "### Validated Gram $RELEASE_VERSION"
+            echo "Source: $RELEASE_SOURCE_SHA"
+            echo "Pipeline: $GITHUB_SHA"
+            echo 'Build and validation do not submit to the Store.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  preflight:
+    name: Preflight Chrome Web Store
+    needs: [source, validate]
+    if: >-
+      always() && needs.source.result == 'success' &&
+      (inputs.mode == 'preflight' || (inputs.mode == 'stage' && needs.validate.result == 'success'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check current source and release authority
+        if: inputs.mode == 'stage'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/source.mjs live "$RELEASE_SOURCE_SHA" "$RELEASE_VERSION"
+      - name: Check the Store item before deploying web
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          PUBLISHER_ID: ${{ vars.GRAM_CHROME_PUBLISHER_ID }}
+          EXTENSION_ID: nphplpgoakhhjchkkhmiggakijnkhfnd
+          ROLLOUT: ${{ inputs.rollout_percentage }}
+        run: bash scripts/publish-chrome.sh preflight "$RELEASE_VERSION" "$ROLLOUT"
+
+  web:
+    name: Deploy the validated web artifact
+    needs: [validate, preflight]
+    if: inputs.mode == 'stage'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: https://wallet.ton.org
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.validate.outputs.artifact_id }}
+          merge-multiple: true
+          path: verified
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.validate.outputs.pages_id }}
+          merge-multiple: true
+          path: pages
+      - name: Verify the exact native Pages artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ID: ${{ needs.validate.outputs.pages_id }}
+          PAGES_NAME: ${{ needs.validate.outputs.pages_name }}
+        run: |
+          node scripts/receipts.mjs verify-build verified/build-receipt.json verified current
+          node scripts/receipts.mjs artifact "$PAGES_ID" "$PAGES_NAME"
+          cmp pages/artifact.tar "verified/GramWallet-web-$RELEASE_VERSION.tar"
+      - name: Refuse an outdated source before deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/source.mjs live "$RELEASE_SOURCE_SHA" "$RELEASE_VERSION"
+      - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ needs.validate.outputs.pages_name }}
+      - name: Verify the public website release
+        run: node scripts/receipts.mjs live-web verified/build-receipt.json
+      - name: Record web deployment separately
+        run: echo "Web deployed and verified at https://wallet.ton.org — Chrome submission follows separately." >> "$GITHUB_STEP_SUMMARY"
+
+  stage:
+    name: Upload and stage Chrome for review
+    permissions:
+      contents: write
+    needs: [validate, web]
+    if: inputs.mode == 'stage'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.validate.outputs.artifact_id }}
+          merge-multiple: true
+          path: verified
+      - name: Verify the original validated build
+        run: |
+          node scripts/receipts.mjs verify-build verified/build-receipt.json verified current
+          DIGEST=$(node -p "JSON.parse(require('fs').readFileSync('verified/build-receipt.json')).archiveSha256")
+          node scripts/validate-chrome.mjs "verified/GramWallet-chrome-$RELEASE_VERSION.zip" "$RELEASE_VERSION" "$DIGEST"
+      - name: Refuse an outdated source before Store submission
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/source.mjs live "$RELEASE_SOURCE_SHA" "$RELEASE_VERSION"
+      - name: Upload and request staged publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          PUBLISHER_ID: ${{ vars.GRAM_CHROME_PUBLISHER_ID }}
+          EXTENSION_ID: nphplpgoakhhjchkkhmiggakijnkhfnd
+          ROLLOUT: ${{ inputs.rollout_percentage }}
+        run: |
+          bash scripts/publish-chrome.sh stage "verified/GramWallet-chrome-$RELEASE_VERSION.zip" \
+            verified/build-receipt.json "$ROLLOUT" store-receipt.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gram-stage-${{ github.run_id }}-${{ github.run_attempt }}
+          path: store-receipt.json
+          if-no-files-found: ignore
+          retention-days: 90
+      - name: Record Store submission separately
+        run: echo 'Chrome was submitted for staged review; it is not activated. Use the manual Chrome publication workflow after review.' >> "$GITHUB_STEP_SUMMARY"
+
+  result:
+    name: Gram release result
+    if: always()
+    needs: [source, build, validate, preflight, web, stage]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Require every job for the selected mode
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
+          MODE: ${{ inputs.mode }}
+        run: node scripts/receipts.mjs result "$MODE"

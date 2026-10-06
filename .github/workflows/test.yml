@@ -1,26 +1,40 @@
-name: Test
+name: Test release controls
 
 on:
-  push:
-    branches:
-      - master
   pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    name: Simple tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
+    cache-mode: none
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare the Node environment
-        uses: ./.github/actions/prepare_node
+      - name: Verify native cache permissions
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         with:
-          node-version: ${{ vars.NODE_VERSION }}
-
-      - name: Test
+          script: |
+            const mode = process.env.ACTIONS_CACHE_MODE;
+            core.info(`Cache mode: ${mode ?? '<unset>'}`);
+            if (mode !== 'none') throw new Error('Expected native cache-mode: none');
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test tests/*.test.mjs
+      - run: bash -n scripts/publish-chrome.sh
+      - name: Lint workflows with a verified actionlint binary
         run: |
-          npm run i18n:build:default
-          npm test
+          curl --fail --silent --show-error --location \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/actionlint.tar.gz"
+          printf '%s  %s\n' '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8' \
+            "$RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint"
