@@ -7,6 +7,7 @@ This repository owns Gram Wallet release workflows, artifact policy and publishi
 - Require latest public master for new web deployment and staging. Promotion and rollout use the original verified receipt and archive, with public ancestry and release-version checks; public master may have advanced.
 - Keep `check` free of Google credentials. Hosted `preflight` may use them only for OAuth and Store status checks, with publishing disabled and no builds, Pages deployment, claims or uploads.
 - Keep OAuth credentials out of application build and validation jobs, dispatch inputs, logs and artifacts.
+- Application build jobs must have no cache read or write authority; enforce this with native job-level token permissions.
 - Preserve Chrome item ID `nphplpgoakhhjchkkhmiggakijnkhfnd`, legacy storage keys and the `wallet.ton.org` domain.
 - An upload, review submission, review approval, publication and rollout increase are separate states. Check actual Store state and fail closed when a response is ambiguous.
 - Serialize production mutations. Never cancel an active publisher or automatically replace an unknown same-version package.

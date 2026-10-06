@@ -3,6 +3,9 @@
 paths:
   .github/workflows/gram-release.yml:
     ignore:
+      # actionlint 1.7.12 predates native job-level cache permissions.
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#controlling-cache-access-with-cache-mode
+      - '^unexpected key "cache-mode" for "job" section\. expected one of "concurrency", "container", "continue-on-error", "defaults", "env", "environment", "if", "name", "needs", "outputs", "permissions", "runs-on", "secrets", "services", "snapshot", "steps", "strategy", "timeout-minutes", "uses", "with"$'
       - '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$'
   .github/workflows/gram-chrome-publish.yml:
     ignore:
