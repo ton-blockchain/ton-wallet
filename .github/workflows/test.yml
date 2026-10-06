@@ -14,7 +14,13 @@ jobs:
     timeout-minutes: 5
     cache-mode: none
     steps:
-      - run: test "${ACTIONS_CACHE_MODE-}" = none
+      - name: Verify native cache permissions
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        with:
+          script: |
+            const mode = process.env.ACTIONS_CACHE_MODE;
+            core.info(`Cache mode: ${mode ?? '<unset>'}`);
+            if (mode !== 'none') throw new Error('Expected native cache-mode: none');
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
