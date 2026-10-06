@@ -40,7 +40,6 @@ jobs:
     name: Publish the original reviewed Chrome package
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: production
     steps:
       - uses: actions/checkout@v4
         with:

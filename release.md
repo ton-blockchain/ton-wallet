@@ -15,16 +15,16 @@ Keep both repositories' `GRAM_RELEASE_ENABLED` variable unset or `false` until t
 | Location | Configuration |
 | --- | --- |
 | Public `mytonwallet` repository secret | `TON_WALLET_ACTIONS_TOKEN`: fine-grained token restricted to `ton-blockchain/ton-wallet`, Actions read/write; GitHub's required metadata access only |
-| `ton-wallet` environment `production` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` from the publisher account with publish rights on the existing item |
-| `ton-wallet` environment `production` variable | `GRAM_CHROME_PUBLISHER_ID`, copied from Chrome Web Store Publisher settings |
+| `ton-wallet` repository secrets | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` from the publisher account with publish rights on the existing item |
+| `ton-wallet` repository variable | `GRAM_CHROME_PUBLISHER_ID`, copied from Chrome Web Store Publisher settings |
 | `ton-wallet` environment `github-pages` | Permit deployment from `master`; preserve the configured custom domain |
 | Both repositories | `GRAM_RELEASE_ENABLED=true` only after verified cutover |
 
 For the dispatch token, repository Contents write is not required. A repository-scoped GitHub App installation token can replace the fine-grained token when a suitable installed App exists; configure token generation explicitly rather than assuming the caller's `GITHUB_TOKEN` can reach another repository. Receiver runs use their own token for artifacts and Pages.
 
-Google credentials are environment secrets and must never be copied into a commit, command-line argument, dispatch payload or build artifact. Supply values through a secret manager or stdin. Record only secret names and successful API status in setup evidence.
+Google credentials are repository secrets, available to repository workflows without a `production` environment approval boundary. Reference them only in trusted receiver preflight and publisher steps; never copy them into a commit, command-line argument, dispatch payload or build artifact. Supply values through a secret manager or stdin. Record only secret names and successful API status in setup evidence.
 
-Repository Maintain can update repository code and repository secrets. Configuring environment protection and environment secrets requires Admin; installing or expanding a GitHub App requires an eligible administrator or owner. Read back the actual persisted settings after provisioning. Read access to a public key does not prove that environment administration succeeded.
+Repository Write or Maintain can configure repository secrets and variables. The `github-pages` environment keeps its separate deployment policy; changing environment configuration requires Admin. CodeQL default setup is a separate setting managed by repository or organization owners, security managers, or users with Admin. Provisioning repository credentials does not change CodeQL configuration or resolve a failed analysis. Read back the actual persisted settings after provisioning; read access to a public key does not prove a configuration write succeeded.
 
 The receiver builds with production defaults from the pinned public application source. Copy the reviewed public `PROXY_HOSTS` and `WALLET_CONNECT_PROJECT_ID` repository variables from the existing public release configuration when provisioning. These are public build settings, not OAuth secrets. Add only reviewed public build configuration to its workflow; do not copy `.env`, beta job environments or arbitrary repository variables. Validate the resulting artifacts after any configuration change.
 
@@ -34,7 +34,7 @@ The receiver builds with production defaults from the pinned public application 
 2. Land the reviewed receiver workflows and removal of legacy multi-platform publishing. Do not provision Google secrets while the obsolete generic publisher is still enabled. These changes must be ordinary source commits; never use a `[Build]` commit subject.
 3. Land the upstream thin dispatcher through the normal private-to-public release flow. Verify the former automatic `docs/` writer is gone. The legacy manual writer is removed from the upstream repository as part of that change.
 4. Run receiver mode `check` at the chosen public SHA/version. Verify source identity, tests, both package validations, build receipt and ZIP digest. A local test pass is not a hosted check pass.
-5. Provision credentials and environments. Run receiver mode `preflight` on `master` while publishing remains disabled. It checks the public source, Google OAuth scope, fixed Store item, health and version state. It does not build, deploy Pages, upload a ZIP or create a claim. Resolve any pending edit/review or unknown same-version draft before proceeding. Read-only preflight cannot prove upload permission or rollout eligibility: a rollout below 100% requires more than 10,000 active users over the previous seven days, verified separately in the Store.
+5. Provision repository secrets and variables. Run receiver mode `preflight` on `master` while publishing remains disabled. It checks the public source, Google OAuth scope, fixed Store item, health and version state. It does not build, deploy Pages, upload a ZIP or create a claim. Resolve any pending edit/review or unknown same-version draft before proceeding. Read-only preflight cannot prove upload permission or rollout eligibility: a rollout below 100% requires more than 10,000 active users over the previous seven days, verified separately in the Store.
 6. Change Pages publishing source to GitHub Actions, preserving `wallet.ton.org` and the existing domain configuration. Confirm the persisted Pages API state. Keep `docs/` unchanged so the former site can be restored during cutover.
 7. Enable the receiver, then the upstream dispatcher. Start an explicit `stage` run for the agreed release. Verify Pages deployment and the live site's version/source receipt; separately verify that Chrome Web Store accepted staged review for the correct item/version.
 8. Download the successful stage run's exact build artifact and verify its receipt, run/attempt and ZIP digest. Test the 4.0.7 upgrade with those bytes before activation; a separate check run or rebuild does not prove the staged ZIP. Use a fresh 4.0.7 test profile or its pre-upgrade snapshot. Keep the ZIP unchanged; record any manifest-key-only adjustment needed by an unpacked same-ID test harness.
@@ -116,6 +116,8 @@ Promotion and rollout never rebuild or upload. They recover the original source,
 
 ## References
 
+- [GitHub repository and environment secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
+- [GitHub CodeQL default setup permissions](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configure-code-scanning)
 - [GitHub workflow dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)
 - [GitHub Pages custom workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
 - [GitHub concurrency queues](https://github.blog/changelog/2026-05-07-github-actions-concurrency-groups-now-allow-larger-queues/)

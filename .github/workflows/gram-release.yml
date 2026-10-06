@@ -170,7 +170,6 @@ jobs:
       (inputs.mode == 'preflight' || (inputs.mode == 'stage' && needs.validate.result == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    environment: production
     steps:
       - uses: actions/checkout@v4
         with:
@@ -256,7 +255,6 @@ jobs:
     if: inputs.mode == 'stage'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: production
     steps:
       - uses: actions/checkout@v4
         with:
