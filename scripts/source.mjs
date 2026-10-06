@@ -18,14 +18,18 @@ export function validateVersion(version) {
 export function validateInputs(sourceSha, version, mode, rollout) {
   requireValue(SHA.test(sourceSha), 'A full source SHA is required');
   validateVersion(version);
-  requireValue(['check', 'stage'].includes(mode), 'Mode must be check or stage');
+  requireValue(['check', 'preflight', 'stage'].includes(mode), 'Mode must be check, preflight or stage');
   requireValue(typeof rollout === 'string' && INTEGER.test(rollout) && Number(rollout) <= 100, 'Invalid rollout percentage');
 }
 
-export function assertLiveContext(env = process.env) {
+export function assertReceiverContext(env = process.env) {
   requireValue(env.GITHUB_REPOSITORY === CONTROL_REPOSITORY
     && env.GITHUB_REF === 'refs/heads/master' && env.GITHUB_EVENT_NAME === 'workflow_dispatch',
-  'Live operations require the control repository master workflow');
+  'Privileged operations require the control repository master workflow');
+}
+
+export function assertLiveContext(env = process.env) {
+  assertReceiverContext(env);
   requireValue(env.GRAM_RELEASE_ENABLED === 'true', 'Gram release publishing is disabled');
 }
 
@@ -75,14 +79,15 @@ async function main() {
   if (command === 'check') {
     validateInputs(sourceSha, version, mode, rollout);
     if (mode === 'stage') assertLiveContext();
+    else if (mode === 'preflight') assertReceiverContext();
     await checkSource(sourceSha, version);
     if (mode === 'stage') await assertLatestSource(sourceSha);
-  } else if (command === 'live') {
+  } else if (command === 'live' || command === 'recorded') {
     assertLiveContext();
     await checkSource(sourceSha, version);
-    await assertLatestSource(sourceSha);
+    if (command === 'live') await assertLatestSource(sourceSha);
   } else {
-    throw new Error('Usage: source.mjs check SHA VERSION MODE ROLLOUT | live SHA VERSION');
+    throw new Error('Usage: source.mjs check SHA VERSION MODE ROLLOUT | live SHA VERSION | recorded SHA VERSION');
   }
 }
 

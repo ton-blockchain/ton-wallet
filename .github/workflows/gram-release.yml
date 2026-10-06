@@ -13,11 +13,11 @@ on:
         required: true
         type: string
       mode:
-        description: Build only or deploy web and stage Chrome
+        description: Build, preflight the Store, or deploy web and stage Chrome
         required: true
         type: choice
         default: check
-        options: [check, stage]
+        options: [check, preflight, stage]
       rollout_percentage:
         description: Initial Chrome percentage retained through staged activation
         required: true
@@ -60,6 +60,7 @@ jobs:
   build:
     name: Build both Gram targets without publishing credentials
     needs: source
+    if: inputs.mode != 'preflight'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -163,8 +164,10 @@ jobs:
 
   preflight:
     name: Preflight Chrome Web Store
-    needs: validate
-    if: inputs.mode == 'stage'
+    needs: [source, validate]
+    if: >-
+      always() && needs.source.result == 'success' &&
+      (inputs.mode == 'preflight' || (inputs.mode == 'stage' && needs.validate.result == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: production
@@ -177,6 +180,7 @@ jobs:
         with:
           node-version: '24'
       - name: Check current source and release authority
+        if: inputs.mode == 'stage'
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/source.mjs live "$RELEASE_SOURCE_SHA" "$RELEASE_VERSION"
@@ -194,6 +198,7 @@ jobs:
   web:
     name: Deploy the validated web artifact
     needs: [validate, preflight]
+    if: inputs.mode == 'stage'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -248,6 +253,7 @@ jobs:
     permissions:
       contents: write
     needs: [validate, web]
+    if: inputs.mode == 'stage'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production

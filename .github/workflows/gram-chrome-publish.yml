@@ -96,12 +96,12 @@ jobs:
           node scripts/receipts.mjs verify-build verified/build-receipt.json verified build-selection.json
           node scripts/receipts.mjs operation operation/store-receipt.json operation-selection.json verified/build-receipt.json
           node scripts/validate-chrome.mjs "verified/$ARCHIVE" "$VERSION" "$DIGEST"
-      - name: Recheck current source and release authority
+      - name: Recheck recorded source lineage and release authority
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ steps.receipt.outputs.source_sha }}
           VERSION: ${{ steps.receipt.outputs.version }}
-        run: node scripts/source.mjs live "$SOURCE_SHA" "$VERSION"
+        run: node scripts/source.mjs recorded "$SOURCE_SHA" "$VERSION"
       - name: Activate staged revision or increase rollout
         env:
           GH_TOKEN: ${{ github.token }}

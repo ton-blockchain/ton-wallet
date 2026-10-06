@@ -196,7 +196,12 @@ export async function verifyLiveWeb(receipt, { fetchImpl = globalThis.fetch, att
   throw new Error('Website does not serve the expected release identity');
 }
 export function assertReleaseResult(mode, results) {
-  requireValue(['check', 'stage'].includes(mode), 'Invalid release mode');
-  const required = mode === 'check' ? ['source', 'build', 'validate'] : ['source', 'build', 'validate', 'preflight', 'web', 'stage'];
+  const jobs = { check: ['source', 'build', 'validate'], preflight: ['source', 'preflight'],
+    stage: ['source', 'build', 'validate', 'preflight', 'web', 'stage'] };
+  requireValue(Object.hasOwn(jobs, mode), 'Invalid release mode');
+  const required = jobs[mode];
   for (const job of required) requireValue(results[job]?.result === 'success', `Required release job did not succeed: ${job}`);
+  for (const job of jobs.stage.filter((name) => !required.includes(name))) {
+    requireValue(results[job]?.result === 'skipped', `Unexpected release job execution: ${job}`);
+  }
 }

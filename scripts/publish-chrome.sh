@@ -181,11 +181,12 @@ matches_channel() {
 }
 
 validate_new_version() {
-  local version state
+  local version state submitted_versions
   state="$(jq -r '.submittedItemRevisionStatus.state // empty' "$STATUS_RESPONSE")"
+  submitted_versions="$(jq -r '[.submittedItemRevisionStatus.distributionChannels[]?.crxVersion] | join(", ")' "$STATUS_RESPONSE")"
   case "$state" in
     ""|CANCELLED|REJECTED) ;;
-    *) fail "Store has a submitted revision in state $state; never cancel or replace it automatically." ;;
+    *) fail "Store revision ${submitted_versions:-unknown} is $state; new staging is blocked and web deployment remains blocked. Resolve the existing review first; never cancel or replace it automatically." ;;
   esac
   while IFS= read -r version; do
     version_is_newer "$PACKAGE_VERSION" "$version" || fail "Candidate must be newer than Store version $version."
@@ -193,18 +194,33 @@ validate_new_version() {
     .submittedItemRevisionStatus.distributionChannels[]?.crxVersion] | .[] | select(type == "string")' "$STATUS_RESPONSE")
 }
 
-validate_latest_published() {
-  local version
+validate_recorded_version() {
+  local version state
   while IFS= read -r version; do
     [ "$version" = "$PACKAGE_VERSION" ] || version_is_newer "$PACKAGE_VERSION" "$version" \
-      || fail "Store already has a newer published version $version."
-  done < <(jq -r '.publishedItemRevisionStatus.distributionChannels[]?.crxVersion | select(type == "string")' "$STATUS_RESPONSE")
+      || fail "Store already has a newer version $version."
+  done < <(jq -r '[.publishedItemRevisionStatus.distributionChannels[]?.crxVersion,
+    .submittedItemRevisionStatus.distributionChannels[]?.crxVersion] | .[] | select(type == "string")' "$STATUS_RESPONSE")
+  state="$(jq -r '.submittedItemRevisionStatus.state // empty' "$STATUS_RESPONSE")"
+  case "$state" in
+    ""|CANCELLED|REJECTED) return ;;
+  esac
+  jq -e --arg version "$PACKAGE_VERSION" '.submittedItemRevisionStatus.distributionChannels
+    | type == "array" and length > 0 and all(.[]; .crxVersion == $version)' "$STATUS_RESPONSE" >/dev/null \
+    || fail "Store has a conflicting submitted revision."
+  if [ "$MODE" = "rollout" ] && [ "$state" != "PUBLISHED" ]; then
+    fail "Store has a submitted revision in state $state; reconcile it before increasing rollout."
+  fi
 }
 
 request_publish() {
   local publish_type="$1"
   local response="$TEMP_DIR/publish.json" body
-  node "$SCRIPT_DIR/source.mjs" live "$SOURCE_SHA" "$PACKAGE_VERSION"
+  if [ "$MODE" = "stage" ]; then
+    node "$SCRIPT_DIR/source.mjs" live "$SOURCE_SHA" "$PACKAGE_VERSION"
+  else
+    node "$SCRIPT_DIR/source.mjs" recorded "$SOURCE_SHA" "$PACKAGE_VERSION"
+  fi
   body="$(jq -nc --arg type "$publish_type" --argjson rollout "$ROLLOUT_PERCENTAGE" \
     '{publishType:$type, deployInfos:[{deployPercentage:$rollout}], skipReview:false, blockOnWarnings:true}')"
   PHASE="publish-requested"; write_receipt false
@@ -230,13 +246,13 @@ case "$MODE" in
     [ "$(jq -r '.submittedItemRevisionStatus.state // empty' "$STATUS_RESPONSE")" = "STAGED" ] \
       || fail "Candidate must be STAGED before activation."
     matches_channel submittedItemRevisionStatus "$ROLLOUT_PERCENTAGE" || fail "Staged version or rollout differs from receipt."
-    validate_latest_published
+    validate_recorded_version
     ;;
   rollout)
     [ "$(jq -r '.publishedItemRevisionStatus.state // empty' "$STATUS_RESPONSE")" = "PUBLISHED" ] \
       || fail "Candidate must be PUBLISHED before increasing rollout."
     matches_channel publishedItemRevisionStatus "$PREVIOUS_PERCENTAGE" || fail "Published version or rollout differs from receipt."
-    validate_latest_published
+    validate_recorded_version
     ;;
 esac
 if [ "$MODE" = "preflight" ]; then
@@ -272,7 +288,7 @@ if [ "$MODE" = "stage" ]; then
 elif [ "$MODE" = "promote" ]; then
   request_publish DEFAULT_PUBLISH
 else
-  node "$SCRIPT_DIR/source.mjs" live "$SOURCE_SHA" "$PACKAGE_VERSION"
+  node "$SCRIPT_DIR/source.mjs" recorded "$SOURCE_SHA" "$PACKAGE_VERSION"
   PHASE="rollout-requested"; write_receipt false
   curl --fail-with-body --silent --show-error --request POST --output "$TEMP_DIR/rollout.json" \
     --header "Authorization: Bearer $ACCESS_TOKEN" --header "Content-Type: application/json" \
@@ -292,7 +308,7 @@ for attempt in {1..12}; do
   else
     STATE="$(jq -r '.publishedItemRevisionStatus.state // empty' "$STATUS_RESPONSE")"
     if [ "$STATE" = "PUBLISHED" ] && matches_channel publishedItemRevisionStatus "$ROLLOUT_PERCENTAGE"; then
-      validate_latest_published
+      validate_recorded_version
       READBACK_OK=1; break
     fi
   fi

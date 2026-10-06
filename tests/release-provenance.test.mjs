@@ -65,7 +65,7 @@ test('source check accepts only the public master lineage and matching release f
   ]) await assert.rejects(checkSource(sourceSha, version, api(sourceRoutes(overrides))));
 });
 
-test('historical public source may be checked but cannot publish after master advances', async () => {
+test('historical public source remains valid but cannot be used for a new stage after master advances', async () => {
   const routes = sourceRoutes({
     [`${sourceBase}/commits/master`]: { sha: 'd'.repeat(40) },
     [`${sourceBase}/compare/${sourceSha}...master`]: { status: 'ahead', merge_base_commit: { sha: sourceSha } },
@@ -196,4 +196,16 @@ test('check succeeds with skipped publishers but stage never hides a skipped or 
   assert.throws(() => assertReleaseResult('stage', checked));
   assert.throws(() => assertReleaseResult('check', { ...checked, build: { result: 'failure' } }));
   assertReleaseResult('stage', { ...checked, preflight: { result: 'success' }, web: { result: 'success' }, stage: { result: 'success' } });
+});
+
+test('preflight requires only source and Store checks and rejects any build or publisher execution', () => {
+  const results = Object.fromEntries(['source', 'build', 'validate', 'preflight', 'web', 'stage']
+    .map((job) => [job, { result: ['source', 'preflight'].includes(job) ? 'success' : 'skipped' }]));
+  assertReleaseResult('preflight', results);
+  for (const job of ['source', 'preflight']) {
+    assert.throws(() => assertReleaseResult('preflight', { ...results, [job]: { result: 'skipped' } }));
+  }
+  for (const job of ['build', 'validate', 'web', 'stage']) {
+    assert.throws(() => assertReleaseResult('preflight', { ...results, [job]: { result: 'success' } }));
+  }
 });

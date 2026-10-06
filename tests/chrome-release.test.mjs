@@ -385,7 +385,7 @@ import path from 'node:path';
 const dir = process.env.FAKE_STORE_DIR;
 globalThis.fetch = async (url, options = {}) => {
   const config = JSON.parse(fs.readFileSync(path.join(dir, 'config.json')));
-  fs.appendFileSync(path.join(dir, 'requests.jsonl'), JSON.stringify({ url }) + '\\n');
+  fs.appendFileSync(path.join(dir, 'requests.jsonl'), JSON.stringify({ url, method: options.method || 'GET' }) + '\\n');
   let value;
   if (url.endsWith('/git/tags') && options.method === 'POST') {
     value = { sha: '4'.repeat(40) };
@@ -402,9 +402,9 @@ globalThis.fetch = async (url, options = {}) => {
     const stale = config.staleInitially || (config.staleAfterUpload && requests.some(({ url }) => url.endsWith(':upload')));
     value = { sha: stale ? '9'.repeat(40) : '1'.repeat(40) };
   } else if (url.includes('/compare/')) {
-    value = { status: 'identical', merge_base_commit: { sha: '1'.repeat(40) } };
+    value = config.comparison || { status: config.staleInitially ? 'ahead' : 'identical', merge_base_commit: { sha: '1'.repeat(40) } };
   } else if (url.includes('/contents/')) {
-    value = { type: 'file', encoding: 'base64', content: Buffer.from(url.includes('/package.json?') ? JSON.stringify({ version: '${candidateVersion}' }) : '${candidateVersion}\\n').toString('base64') };
+    value = { type: 'file', encoding: 'base64', content: Buffer.from(url.includes('/package.json?') ? JSON.stringify({ version: config.packageVersion || '${candidateVersion}' }) : (config.releaseVersion || '${candidateVersion}') + '\\n').toString('base64') };
   } else if (url === 'https://api.github.com/repos/mytonwallet-org/mytonwallet') {
     value = { full_name: 'mytonwallet-org/mytonwallet', private: false, default_branch: 'master' };
   } else { throw new Error('Unexpected GitHub request'); }
@@ -652,6 +652,7 @@ for (const [name, config, mutationCount] of [['upload', { staleInitially: true }
     const store = createStore(t, config);
     assertFailure(store.run('stage', store.archive, store.buildPath, '5', store.outputPath));
     assert.equal(mutations(store).length, mutationCount);
+    if (name === 'upload') assert.ok(store.requests().every(({ url }) => !url.includes('/git/')));
     assert.equal(JSON.parse(read(store.outputPath)).success, false);
   });
 }
@@ -701,6 +702,92 @@ test('rollout rejects a newer published channel even when the recorded channel r
   const store = createStore(t, {
     initialStatus: publishedStatus([candidateChannel, { crxVersion: '26.9.11', deployPercentage: 5 }]),
   });
+  assertFailure(store.run('rollout', store.input(store.receipt('promote')), '25', store.outputPath));
+  assert.deepEqual(mutations(store), []);
+});
+
+for (const mode of ['promote', 'rollout']) {
+  test(`${mode} preserves the recorded package after public master advances`, (t) => {
+    const store = createStore(t, { staleInitially: true,
+      initialStatus: mode === 'promote' ? stagedStatus() : publishedStatus() });
+    const input = store.input(store.receipt(mode === 'promote' ? 'stage' : 'promote'));
+    const args = mode === 'promote' ? [input, store.outputPath] : [input, '25', store.outputPath];
+    assertSuccess(store.run(mode, ...args));
+    assert.deepEqual(JSON.parse(read(store.outputPath)).build, store.build);
+    assert.equal(mutations(store).length, 1);
+    assert.ok(store.requests().every(({ url }) => !url.endsWith(':upload') && !url.includes('/git/')));
+  });
+
+  for (const config of [
+    { comparison: { status: 'diverged', merge_base_commit: { sha: '8'.repeat(40) } } },
+    { packageVersion: '26.9.11' }, { releaseVersion: '26.9.11' },
+  ]) {
+    test(`${mode} rejects a historical source with invalid ${Object.keys(config)[0]}`, (t) => {
+      const store = createStore(t, { ...config, staleInitially: true,
+        initialStatus: mode === 'promote' ? stagedStatus() : publishedStatus() });
+      const input = store.input(store.receipt(mode === 'promote' ? 'stage' : 'promote'));
+      assertFailure(store.run(mode, ...(mode === 'promote' ? [input, store.outputPath] : [input, '25', store.outputPath])));
+      assert.deepEqual(mutations(store), []);
+    });
+  }
+
+  test(`${mode} rejects a newer submitted revision even when the recorded channel remains present`, (t) => {
+    const status = mode === 'promote' ? stagedStatus() : publishedStatus();
+    status.submittedItemRevisionStatus = { state: 'STAGED', distributionChannels: [
+      candidateChannel, { crxVersion: '26.9.11', deployPercentage: 5 },
+    ] };
+    const store = createStore(t, { initialStatus: status });
+    const input = store.input(store.receipt(mode === 'promote' ? 'stage' : 'promote'));
+    assertFailure(store.run(mode, ...(mode === 'promote' ? [input, store.outputPath] : [input, '25', store.outputPath])));
+    assert.deepEqual(mutations(store), []);
+  });
+}
+
+test('newer stage fails explicitly while an older revision awaits review before claiming or uploading', (t) => {
+  const store = createStore(t, { initialStatus: stagedStatus([{ crxVersion: '26.9.9', deployPercentage: 5 }], 'PENDING_REVIEW') });
+  const result = store.run('stage', store.archive, store.buildPath, '5', store.outputPath);
+  assertFailure(result);
+  assert.match(result.stderr, /26\.9\.9.*PENDING_REVIEW/);
+  assert.match(result.stderr, /web deployment remains blocked/);
+  assert.deepEqual(mutations(store), []);
+  assert.ok(store.requests().every(({ url }) => !url.includes('/git/')));
+});
+
+test('hosted preflight works with publishing disabled and performs only source, OAuth and Store reads', (t) => {
+  const store = createStore(t);
+  store.env.GRAM_RELEASE_ENABLED = 'false';
+  const source = spawnSync(process.execPath, [path.join(path.dirname(publisherPath), 'source.mjs'),
+    'check', store.build.sourceSha, candidateVersion, 'preflight', '5'], { encoding: 'utf8', env: store.env });
+  assertSuccess(source);
+  assertSuccess(store.run('preflight', candidateVersion, '5'));
+  assert.ok(store.requests().every(({ url, method }) => url.endsWith('/token') || url.endsWith(':fetchStatus')
+    || (url.startsWith('https://api.github.com/repos/mytonwallet-org/mytonwallet') && method === 'GET')));
+  assert.ok(!fs.existsSync(store.outputPath));
+  assert.ok(!fs.existsSync(path.join(store.directory, 'claimed')));
+});
+
+test('hosted preflight refuses an untrusted workflow context before requesting credentials', (t) => {
+  const store = createStore(t);
+  store.env.GITHUB_REF = 'refs/heads/unreviewed';
+  store.env.GRAM_RELEASE_ENABLED = 'false';
+  const result = spawnSync(process.execPath, [path.join(path.dirname(publisherPath), 'source.mjs'),
+    'check', store.build.sourceSha, candidateVersion, 'preflight', '5'], { encoding: 'utf8', env: store.env });
+  assertFailure(result);
+  assert.deepEqual(store.requests(), []);
+});
+
+test('preflight rejects an OAuth response for another Store item without mutations', (t) => {
+  const store = createStore(t, { initialStatus: { ...initialStoreStatus, itemId: 'another-item' } });
+  const result = store.run('preflight', candidateVersion, '5');
+  assertFailure(result);
+  assert.match(result.stderr, /wrong item/);
+  assert.ok(store.requests().every(({ url }) => url.endsWith('/token') || url.endsWith(':fetchStatus')));
+});
+
+test('rollout refuses a conflicting active submitted revision even if its version is older', (t) => {
+  const status = publishedStatus();
+  status.submittedItemRevisionStatus = { state: 'STAGED', distributionChannels: [{ crxVersion: '26.9.9', deployPercentage: 5 }] };
+  const store = createStore(t, { initialStatus: status });
   assertFailure(store.run('rollout', store.input(store.receipt('promote')), '25', store.outputPath));
   assert.deepEqual(mutations(store), []);
 });
