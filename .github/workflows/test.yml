@@ -12,7 +12,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    cache-mode: none
     steps:
+      - run: test "${ACTIONS_CACHE_MODE-}" = none
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
