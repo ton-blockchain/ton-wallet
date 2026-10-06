@@ -63,6 +63,7 @@ jobs:
     if: inputs.mode != 'preflight'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    cache-mode: none
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
@@ -74,7 +75,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
       - name: Confirm exact source and clean build environment
         run: |
           test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
