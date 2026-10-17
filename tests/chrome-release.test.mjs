@@ -115,7 +115,7 @@ const validManifest = {
       "base-uri 'none';",
       "font-src 'self' https://fonts.gstatic.com/;",
       "form-action 'none';",
-      "frame-src 'self' https: https://buy-sandbox.moonpay.com/ https://buy.moonpay.com/ https://sell.moonpay.com/ https://sell-sandbox.moonpay.com/ https://*.onetrust.com/ https://dreamwalkers.io/ https://avanchange.com/ https://pay.walletconnect.com/ http://localhost:* https://tonscan.org https://testnet.tonscan.org https://tonviewer.com https://testnet.tonviewer.com https://*.mywallet.io;",
+      "frame-src 'self' https: https://buy-sandbox.moonpay.com/ https://buy.moonpay.com/ https://sell.moonpay.com/ https://sell-sandbox.moonpay.com/ https://*.onetrust.com/ https://dreamwalkers.io/ https://avanchange.com/ https://pay.walletconnect.com/ http://localhost:* https://tonscan.org https://testnet.tonscan.org https://tonviewer.com https://testnet.tonviewer.com https://*.mywallet.io https://actonscan.com;",
     ].join(' '),
   },
 };
