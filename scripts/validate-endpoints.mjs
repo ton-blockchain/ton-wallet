@@ -91,7 +91,7 @@ function validateArchiveCsp(policy) {
       'https://sell.moonpay.com/ https://sell-sandbox.moonpay.com/ https://*.onetrust.com/',
       'https://dreamwalkers.io/ https://avanchange.com/ https://pay.walletconnect.com/',
       'http://localhost:* https://tonscan.org https://testnet.tonscan.org',
-      'https://tonviewer.com https://testnet.tonviewer.com https://*.mywallet.io',
+      'https://tonviewer.com https://testnet.tonviewer.com https://*.mywallet.io https://actonscan.com',
     ].join(' '),
   };
   const directives = new Map();
