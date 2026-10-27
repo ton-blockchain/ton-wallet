@@ -90,7 +90,7 @@ const validManifest = {
     512: 'gramWallet/icon-512x512.png',
   },
   action: { default_title: 'Gram Wallet' },
-  permissions: ['webRequest', 'system.display', 'proxy', 'storage', 'unlimitedStorage'],
+  permissions: ['system.display', 'proxy', 'storage', 'unlimitedStorage'],
   background: { service_worker: '/extensionServiceWorker.js' },
   content_scripts: [{
     matches: ['file://*/*', 'http://*/*', 'https://*/*'],
