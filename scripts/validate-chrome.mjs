@@ -58,7 +58,6 @@ assert.deepEqual(manifest.icons, {
   512: 'gramWallet/icon-512x512.png',
 });
 assert.deepEqual(manifest.permissions, [
-  'webRequest',
   'system.display',
   'proxy',
   'storage',
